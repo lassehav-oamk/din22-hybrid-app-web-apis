@@ -40,63 +40,37 @@ passport.use(
 );
 
 function httpBasicMw(req, res, next) {
-  // step 1 check if the request has an Authorization header
-  const authHeader = req.get("Authorization");
-  if (authHeader === undefined) {
-    res.status(401).send("You are not authorized to access this resource");
-    return;
-  }
+  // exercise 3 step 1 read the username and password from the body
 
-  // step 2 check if the Authorization header value starts with 'Basic '
-  if (!authHeader.startsWith("Basic ")) {
-    res.status(401).send("You are not authorized to access this resource");
-    return;
-  }
+  try {
+    const username = req.body.username;
+    const password = req.body.password;
 
-  // step 3 decode the base64 encoded string
-  // We need to split the string for example "Basic dlfjlkglkdsfsdkjglkdsg"
-  const splittedAuthHeader = authHeader.split(" ");
-  if (splittedAuthHeader.length !== 2) {
-    res.status(401).send("You are not authorized to access this resource");
-    return;
-  }
+    console.log("username: " + username + ", password: " + password);
 
-  console.log(splittedAuthHeader);
-  const base64encodedUsernamePassword = splittedAuthHeader[1];
-
-  const decodedString = Buffer.from(
-    base64encodedUsernamePassword,
-    "base64"
-  ).toString("utf-8");
-  console.log(decodedString);
-
-  // step 4 split the decoded string into two parts
-  const usernamePassword = decodedString.split(":");
-  const username = usernamePassword[0];
-  const password = usernamePassword[1];
-
-  console.log("username: " + username + ", password: " + password);
-
-  // step 5 check if username matches any user in out "database" the array of users
-  const user = userArray.find((user) => user.username === username);
-  if (user === undefined) {
-    res.status(401).send("You are not authorized to access this resource");
-    return;
-  }
-
-  // step 6 check if password matches stored password hash
-  bcrypt.compare(password, user.password).then((result) => {
-    // if result is true, the password is correct
-    if (result === true) {
-      next();
-    }
-
-    // if result is false, the password is incorrect
-    if (result === false) {
+    // step 5 check if username matches any user in out "database" the array of users
+    const user = userArray.find((user) => user.username === username);
+    if (user === undefined) {
       res.status(401).send("You are not authorized to access this resource");
       return;
     }
-  });
+
+    // step 6 check if password matches stored password hash
+    bcrypt.compare(password, user.password).then((result) => {
+      // if result is true, the password is correct
+      if (result === true) {
+        next();
+      }
+
+      // if result is false, the password is incorrect
+      if (result === false) {
+        res.status(401).send("You are not authorized to access this resource");
+        return;
+      }
+    });
+  } catch (error) {
+    res.status(401).send();
+  }
 }
 
 function validateJWT(req, res, next) {
@@ -136,7 +110,7 @@ app.post("/register", (req, res) => {
   });
 });
 
-app.get("/login", httpBasicMw, (req, res) => {
+app.post("/login", httpBasicMw, (req, res) => {
   // create a JWT token
   const jsonwebtoken = jwt.sign(
     {
@@ -164,6 +138,23 @@ app.get(
     console.log("User information: ", req.user);
 
     res.status(200).send("Hello from jwtProtectedRoute!");
+  }
+);
+
+app.get(
+  "/users",
+  passport.authenticate("jwt", { session: false }),
+  (req, res) => {
+    // step 1 strip password hashes away from the user array
+    const cleanUserArray = userArray.map((user) => {
+      return {
+        username: user.username,
+        email: user.email,
+      };
+    });
+
+    // step 2 return the modified user array
+    res.status(200).json(cleanUserArray);
   }
 );
 
